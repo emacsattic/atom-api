@@ -1,5 +1,5 @@
 ;;; atom-api.el --- Implementation of draft atom-api
-;;; version 2005-05-06
+;;; version 2005-05-14
 
 ;; Copyright (c) 2005 Erik Hetzner
 
@@ -22,16 +22,34 @@
 ;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;; Boston, MA 02111-1307, USA. (Or get it from fsf.org.)
 
-;;; Commentary:
+;;; Introduction
 
-;; This implements as nearly as I can tell the REST version of the ATOM API in its latest
-;; draft.
+;; http://purl.org/net/emacs-atom-api/
 
-;; It has been tested on emacs21 with the latest url package from
-;; cvs. Diffs for working on other emacs are welcomed. It has been
-;; tested against blogger; I can't find any other functioning,
-;; free-beer atom APIs.
+;; This implements as nearly as I can tell the REST version of the
+;; ATOM API in its latest draft.
 
+;;; Sites known to work:
+
+;; * blogger.com: no known issues (any more)
+
+;;; Features:
+
+;; * Internationalized; you should be able to post in any unicode
+;; supported script.
+
+;; * Seems to work.
+
+;;; Anti-features:
+
+;; atom-api:prompt-for-defaults doesn't work. I can't remember how
+;; this works with following links (ie, atom feeds which link to
+;; others for older entries). There are surely bugs. Code needs clean
+;; up. Supports only whatever authentication that url.el supports (ie,
+;; not WSSE).
+
+;;; Installation
+;;
 ;; Put the following in .emacs or wherever:
 ;; (autoload 'atom-api:entry/edit "atom-api"
 ;;  "Prompts for an entry to edit, opens in new buffer." t)
@@ -40,11 +58,20 @@
 ;; (autoload 'atom-api:entry/delete "atom-api"
 ;;   "Prompts for an entry to delete." t)
 
+;;; Commentary:
+;; 
+;; It has been tested on emacs21 and 22 (cvs). The URL package may
+;; cause you trouble; the latest version from Emacs CVS seems to
+;; work. The one with emacs21 on debian unstable does not seem to
+;; work. I am trying to keep a working copy at the projet web
+;; site. Diffs for working on other emacs are welcomed.
+
 ;; You can customize atom-api:feed/seed-urls to point to atom apis.
 
 ;; This relies upon nxml-mode to edit atom entries. You may add some
 ;; filter functions to atom-api:filters/entry/pre-edit &
-;; /post-edit. Filters are already there to fix blogger.com bugs.
+;; /post-edit. Filters are already there to fix blogger.com
+;; peculiarities.
 
 ;; To begin a new entry, type M-x atom-api:entry/new. This will prompt
 ;; for a title and open a new buffer with your new entry.
@@ -58,17 +85,15 @@
 ;; If you type return after running atom-api:entry/delete, it will try
 ;; to delete the currently edited entry.
 
-;; Bugs & issues:
-
-;; atom-api:prompt-for-defaults doesn't work. I can't remember how
-;; this works with following links (ie, atom feeds which link to
-;; others for older entries). There are surely bugs. Code needs clean
-;; up. Supports only whatever authentication that url.el supports.
-
 ;; To do:
 
 ;; Add support for 'magic' file extension; ie, be able to 'open' and
 ;; 'save' atom entries as files.
+
+;; Clean up variable/function names.
+
+;; Decrease deviation from spec; also, increase the conformity to the
+;; spec.
 
 ;;; Code:
 

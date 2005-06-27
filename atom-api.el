@@ -1,5 +1,5 @@
 ;;; atom-api.el --- Implementation of draft atom-api
-;;; version 2005-06-22
+;;; version 2005-06-27
 
 ;; Copyright (c) 2005 Erik Hetzner
 
@@ -938,3 +938,5 @@ data."
     (buffer-string)))
 
 (provide 'atom-api)
+
+;;; atom-api.el ends here.

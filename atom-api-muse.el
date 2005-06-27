@@ -1,5 +1,5 @@
 ;;; atom-api-muse.el --- Muse (wiki publishing) extension for atom-api.el
-;;; version 2005-06-26
+;;; version 2005-06-27
 
 ;; Copyright (c) 2005 Erik Hetzner
 
@@ -51,7 +51,6 @@
 
 ;;; Code:
 
-(provide 'atom-api-muse)
 (require 'muse-atom)
 (require 'atom-api)
 
@@ -88,3 +87,7 @@ no content yet (entry is new)."
     (insert raw-content)
     (muse-publish-markup-buffer "Untitled" "atom")
     (atom-api:xml/parse-buffer)))
+
+(provide 'atom-api-muse)
+
+;;; atom-api-muse.el ends here.

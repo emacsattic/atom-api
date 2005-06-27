@@ -1,5 +1,5 @@
 ;;; muse-atom.el --- Turn Muse documents into atom entries.
-;;; version 2005-06-26
+;;; version 2005-06-27
 
 ;; Copyright (c) 2005 Erik Hetzner
 
@@ -22,7 +22,6 @@
 ;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ;; Boston, MA 02111-1307, USA. (Or get it from fsf.org.)
 
-(provide 'muse-atom)
 (require 'muse)
 (require 'muse-html)
 
@@ -89,3 +88,5 @@
 ;; 			   ,muse-atom:raw-content)))))
 ;;   (setq muse-atom:raw-content ""))
 
+(provide 'muse-atom)
+;;; muse-atom.el ends here.

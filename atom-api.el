@@ -1,5 +1,5 @@
 ;;; atom-api.el --- Implementation of draft atom-api
-;;; version 2005-05-14
+;;; version 2005-06-22
 
 ;; Copyright (c) 2005 Erik Hetzner
 
@@ -79,8 +79,8 @@
 ;; To edit an entry, type M-x atom-api:entry/edit. You can then type
 ;; the title, date, or id of the entry to fetch & edit it.
 
-;; After you edit a buffer run atom-api:entry/publish-buffer. This
-;; works for new or edited buffers.
+;; After you edit a buffer run atom-api:entry/publish. This works for
+;; new or edited buffers.
 
 ;; If you type return after running atom-api:entry/delete, it will try
 ;; to delete the currently edited entry.
@@ -116,7 +116,7 @@
   :group 'atom-api
   :type 'string)
 
-(defcustom atom-api:link/seed-urls
+(defcustom atom-api:feed/seed-urls
   '("http://www.blogger.com/atom/")
   "URLs to seed from."
   :group 'atom-api
@@ -134,7 +134,7 @@
 
 (defvar atom-api:link/posturl/prompt-history nil)
 
-(defvar atom-api:link/posturl/lookup-table '(())
+(defvar atom-api:link/posturl/lookup-table nil
   "Lookup of available posturis & info.")
 
 (defvar atom-api:link/index-attribute-list '(title)
@@ -146,7 +146,7 @@
   :group 'atom-api
   :type 'string)
 
-(defvar atom-api:entry/lookup-table '(())
+(defvar atom-api:entry/lookup-table nil
   "Lookup mapping strings to info about an entry.")
 
 (defvar atom-api:entry/element-index-list '(title id issued)
@@ -154,10 +154,11 @@
 
 (defvar atom-api:entry/prompt-history nil)
 
-(defcustom atom-api:entry/edit-thunk
-  (lambda () (nxml-mode) (goto-char (point-min)) (re-search-forward "<content[^>]*>[ \t\n]*<div[^>]*>"))
+(defun atom-api:entry/edit-thunk ()
   "Function to start the mode used to edit entries."
-  :type 'function)
+    (nxml-mode)
+    (goto-char (point-min))
+    (re-search-forward "<content[^>]*>[ \t\n]*<div[^>]*>"))
 
 ;; Filters are functions which are called at certain places. Entries
 ;; are filtered in order according the the filter list. The filter
@@ -171,15 +172,20 @@
 ;; will require the entry to be transformed. This may be slow, though
 ;; probably shouldn't matter.
 
+(defgroup atom-api:filters nil
+  "Customization filters for the Emacs Atom API."
+  :group 'atom-api)
+
 (defvar atom-api:filters/customize-type
-  "The rather complicated type which describes filters for customize."
   '(alist
     :key-type string
-    :value-type (list (restricted-sexp :match-alternatives ('data 'tree)) function)))
+    :value-type (list (restricted-sexp :match-alternatives ('data 'tree)) function))
+    "The rather complicated type which describes filters for customize.")
 
 (defcustom atom-api:filters/entry/pre-digest
   nil
   "These filters are called before each entry is digested."
+  :group 'atom-api:filters
   :type atom-api:filters/customize-type)
 
 (defcustom atom-api:filters/entry/pre-publish
@@ -187,6 +193,7 @@
      atom-api:filter-data/entry/blogger-publish-workaround))
   "Filters which are called before an entry is published (ie, edited
 OR new entries). This is applied AFTER post/put specific filters."
+  :group 'atom-api:filters
   :type atom-api:filters/customize-type)
 
 (defcustom atom-api:filters/entry/pre-put
@@ -198,11 +205,13 @@ OR new entries). This is applied AFTER post/put specific filters."
 	(atom-api:xml/to-string-fragment atom-api:generator) "author" data))))
     "Filters which are called just before the entry is PUT (i.e., an
 edit) to the server."
+    :group 'atom-api:filters
     :type atom-api:filters/customize-type)
 
 (defcustom atom-api:filters/entry/pre-post nil
   "Filters which are called on the entry before the data is POSTed
 (i.e., a a new entry) to the server."
+  :group 'atom-api:filters
   :type atom-api:filters/customize-type)
 
 (defcustom atom-api:filters/entry/pre-edit
@@ -210,12 +219,14 @@ edit) to the server."
     ("" 'data (lambda (data) (atom-api:filter-data-util/delete-element "created" data)))
     ("" 'data (lambda (data) (atom-api:filter-data/remove-double-returns data))))    
   "Filters which are called before entry is edited."
+  :group 'atom-api:filters
   :type atom-api:filters/customize-type)
 
 (defcustom atom-api:filters/entry/post-edit
   nil
   "These filters are called after the entry has been edited, before it
 is passed to the post/put filters."
+  :group 'atom-api:filters
   :type atom-api:filters/customize-type)
   
 (defcustom atom-api:prompt-for-defaults
@@ -224,6 +235,13 @@ is passed to the post/put filters."
   :group 'atom-api
   :type '(choice (const :tag "Yes" t)
 		 (const :tag "No" nil)))
+
+;contr. by Masayuki Ataka
+(defcustom atom-api:file-prefix nil
+  "Your blog will be saved at `PREFIX'-`TIME'.xml.  If `nil', do not
+create file but only prepare buffer."
+  :group 'atom-api
+  :type 'string)
 
 ;;some utility functions
 
@@ -291,8 +309,8 @@ CHILD-NAME should match the value returned by `xml-node-name'."
           (push child match)))
     (nreverse match)))
 
-;;grabs first child...useful for nodes with only one child element
 (defsubst xml-get-child (node element)
+  "Returns the first node; useful for nodes with only one child element."
   (car (xml-get-children node element)))
 
 ;;fixed to work properly on string nodes
@@ -392,14 +410,17 @@ sometimes returns a node & sometimes a list of nodes; very confusing."
        (setq ,alist (append ,alist (list (cons ,key ,value))))
      (cons ,key ,value)))
 
-(defun atom-api:util/add-to-alist (alist key value)
-  "Adds key and value to alist uniquely, like add-to-list."
-  (if (not (assoc key alist))
-      (nconc alist (list (cons key value))))
-  (cons key value))
+;(defun atom-api:util/add-to-alist (alist key value)
+;  "Adds key and value to alist uniquely, like add-to-list."
+;  (add-to-alist alist key value))
+;  (if (not (assoc key alist))
+;      (if alist
+;	  (nconc alist (list (cons key value)))
+;	(set alist (list (cons key value)))))
+;  (cons key value))
 
 (defun atom-api:util/add-to-lookup-table (key value lookup-table)
-  (atom-api:util/add-to-alist lookup-table key value))
+  (add-to-list lookup-table (cons key value)))
 
 (defun atom-api:util/lookup-table-to-alist (lookup-table)
   lookup-table)
@@ -425,8 +446,8 @@ sometimes returns a node & sometimes a list of nodes; very confusing."
   (widen)
   (goto-char (point-min))
   (narrow-to-region
-   (or (search-forward "\r\n\r\n" nil t)
-       (search-forward "\n\n" nil t)) 
+   (or (re-search-forward "\n\r?\n" nil t)
+       (point-max))
    (point-max)))
 
 (defun atom-api:util/prompt-for (prompt lookup-table history)
@@ -538,6 +559,23 @@ elements."
   (atom-api:util/foreach-attribute
    node attributes 'atom-api:util/remove-from-lookup-table lookup-table))
 
+(defun atom-api:util/sgml-quote (start end)
+   "Quote SGML text in region START ... END.
+ Only &, < and > are quoted, the rest is left untouched."
+   (interactive "r")
+   ;; This code was copied from the function `sgml-quote' in
+   ;; `sgml-mode.el' (CVS Emacs, 2005-05-31) and adapted accordingly.
+   ;; by Masayuki Ataka
+   (save-restriction
+     (narrow-to-region start end)
+     (goto-char (point-min))
+     (while (re-search-forward "[&<>]" nil t)
+       (replace-match (cdr (assq (char-before) 
+				 '((?& . "&amp;")
+				   (?< . "&lt;")
+				   (?> . "&gt;"))))
+		      t t))))
+
 ;;functions & variables related to feed urls & trees
 (defvar atom-api:feed/digested-urls '("")
   "List of feed urls which have already been digested.")
@@ -578,26 +616,38 @@ response containing an atom feed."
 (defun atom-api:entry/new ()
   "Create a new entry."
   (interactive)
-  (let* ((entry (atom-api:entry/generate-new))
-	 (buffer (generate-new-buffer
-		  (xml-node-text
-		   (xml-get-child entry 'title)))))
+  (let* ((entry (atom-api:xml/parse-string
+		 (atom-api:util/process-filters
+		  atom-api:filters/entry/pre-edit ""
+		  (atom-api:entry/generate-new))))
+	 (buffer (atom-api:util/new-buffer entry)))
+;	 (buffer (generate-ne
+;		  (xml-node-text
+;		   (xml-get-child entry 'title)))))
     (switch-to-buffer buffer)
-    (atom-api:entry/to-editable entry)))
+    (insert (atom-api:xml/to-string (atom-api:entry/to-editable (atom-api:xml/parse-string entry))))
+    (atom-api:entry/edit-thunk)))
+
+(defun atom-api:util/new-buffer (entry)
+  "Return your new blog's buffer name.  See also
+atom-api:file-prefix."
+  (if atom-api:file-prefix
+      (find-file-noselect (format "%s-%s.xml"
+				  atom-api:file-prefix
+				  (xml-node-text
+				   (xml-get-child entry 'issued))))
+    (generate-new-buffer (xml-node-text
+			  (xml-get-child entry 'title)))))
 
 (defun atom-api:entry/to-editable (entry)
-  "Writes user-editable text to the current buffer based on the
-entry."
-  (insert (atom-api:util/process-filters
-	   atom-api:filters/entry/pre-edit "" entry))
-  (funcall atom-api:entry/edit-thunk))
+  "Returns user-editable entry."
+  entry)
 
-(defun atom-api:entry/from-editable ()
-  "This function should turn the text in the buffer into an elisp XML
-tree."
+(defun atom-api:entry/from-editable (text)
+  "Turns used-edited entry into atom entry."
   (atom-api:xml/parse-string
    (atom-api:util/process-filters
-    atom-api:filters/entry/post-edit "" (buffer-string))))
+    atom-api:filters/entry/post-edit "" text)))
 
 (defun atom-api:entry/generate-new ()
   "Returns an xml-tree for a generic new entry."
@@ -617,7 +667,7 @@ tree."
   "Builds lookup keys for the entry."
   (if (atom-api:entry/get-edit-link node)
       (atom-api:util/populate-lookup-table-with-elements
-       atom-api:entry/lookup-table
+       'atom-api:entry/lookup-table
        atom-api:entry/element-index-list
        (atom-api:xml/parse-string
 	(atom-api:util/process-filters
@@ -653,8 +703,8 @@ tree."
   (let* ((entry 
 	  (or (atom-api:entry/prompt-for 
 	       "Entry to delete (or return for current): ")
-	      (atom-api:entry/from-editable)))
-	 (entry-url 
+	      (atom-api:entry/from-editable (buffer-string))))
+	 (entry-url
 	  (xml-get-attribute (atom-api:entry/get-edit-link entry) 'href)))
     (atom-api:url/retrieve "" "DELETE" entry-url  'async
 			   'atom-api:entry/delete-callback (list entry))))
@@ -710,7 +760,10 @@ tree."
   "Publish the current buffer."
   (interactive)
   (atom-api:init 'sync)
-  (let* ((entry (atom-api:entry/from-editable))
+  (let* ((entry (atom-api:util/process-filters
+		 atom-api:filters/entry/post-edit url
+		 (atom-api:entry/from-editable
+		  (buffer-substring-no-properties (point-min) (point-max)))))
 	 (edit-link (atom-api:entry/get-edit-link entry))
 	 (url (xml-get-attribute
 	       (or edit-link
@@ -720,26 +773,22 @@ tree."
 	 (method (if (not edit-link)
 		     "POST"
 		   "PUT"))
-	 (clean-entry
-	  (atom-api:xml/parse-string
-	   (atom-api:util/process-filters
-	    atom-api:filters/entry/post-edit url (buffer-string))))
 	 (dirty-entry
 	  (atom-api:util/process-filters
 	   atom-api:filters/entry/pre-publish url
 	   (cond ((equal method "PUT")
 		  (atom-api:util/process-filters
-		   atom-api:filters/entry/pre-put url clean-entry))
+		   atom-api:filters/entry/pre-put url entry))
 		 ((equal method "POST")
 		  (atom-api:util/process-filters
-		   atom-api:filters/entry/pre-post url clean-entry)))))
-	 (old-entry (atom-api:entry/lookup
-		     (xml-node-text (xml-get-child clean-entry 'id)))))
-    (atom-api:url/retrieve 
+		   atom-api:filters/entry/pre-post url entry)))))
+    (old-entry (atom-api:entry/lookup
+		     (xml-node-text (xml-get-child entry 'id)))))
+    (atom-api:url/retrieve
      (atom-api:util/encode-string-to-utf
       (atom-api:xml/to-string dirty-entry))
      method url 'sync 'atom-api:entry/publish-callback 
-     (list clean-entry old-entry method url))))
+     (list entry old-entry method url))))
 
 (defun atom-api:entry/publish-callback (entry old-entry method entry-url)
   "Function which is called when the item has been posted."
@@ -766,7 +815,7 @@ tree."
   (let ((rel (xml-get-attribute node 'rel)))
     (cond ((string= rel "service.post")
 	   (atom-api:util/populate-lookup-table-with-attributes
-	    atom-api:link/posturl/lookup-table
+	    'atom-api:link/posturl/lookup-table
 	    atom-api:link/index-attribute-list
 	    node))
 	  ((and (string= rel "service.feed")
@@ -864,22 +913,26 @@ data."
 
 (defun atom-api:filter-data/entry/blogger-publish-workaround (data)
   (with-temp-buffer
+    (switch-to-buffer (current-buffer))
     (insert data)
     (goto-char (point-min))
-    (re-search-forward "<content[^>]*>")
+    (re-search-forward "<content[^>]*>" nil t)
     (replace-match "<content mode=\"escaped\" type=\"text/html\">")
     (goto-char (point-min))
-    (re-search-forward "<content[^>]*>")
-    (narrow-to-region (point)
-		      (progn (re-search-forward "</content>")
-			     (match-beginning 0)))
-    (goto-char (point-min))
-    (while (search-forward "<" nil t)
-      (replace-match "&lt;"))
-    (goto-char (point-min))
-    (while (search-forward ">" nil t)
-      (replace-match "&gt;"))
-    (widen)
+    (atom-api:util/sgml-quote (re-search-forward "<content[^>]*>")
+			      (progn (re-search-forward "</content>")
+				     (match-beginning 0)))
+;    (re-search-forward "<content[^>]*>")
+;    (narrow-to-region (point)
+;		      (progn (re-search-forward "</content>")
+;			     (match-beginning 0)))
+;    (goto-char (point-min))
+;    (while (search-forward "<" nil t)
+;      (replace-match "&lt;"))
+;    (goto-char (point-min))
+;    (while (search-forward ">" nil t)
+;      (replace-match "&gt;"))
+;    (widen)
     (goto-char (point-max))
     (insert "\n\n")
     (buffer-string)))

@@ -760,16 +760,18 @@ atom-api:file-prefix."
   "Publish the current buffer."
   (interactive)
   (atom-api:init 'sync)
-  (let* ((entry (atom-api:util/process-filters
-		 atom-api:filters/entry/post-edit url
-		 (atom-api:entry/from-editable
-		  (buffer-substring-no-properties (point-min) (point-max)))))
-	 (edit-link (atom-api:entry/get-edit-link entry))
+  (let* ((raw-entry 
+	  (atom-api:entry/from-editable
+	   (buffer-substring-no-properties (point-min) (point-max))))
+	 (edit-link (atom-api:entry/get-edit-link raw-entry))
 	 (url (xml-get-attribute
 	       (or edit-link
 		   atom-api:link/posturl/default
 		   (atom-api:link/posturl/prompt-for "Publish to: "))
 	       'href))
+	 (entry (atom-api:util/process-filters
+		 atom-api:filters/entry/post-edit url
+		 raw-entry))
 	 (method (if (not edit-link)
 		     "POST"
 		   "PUT"))

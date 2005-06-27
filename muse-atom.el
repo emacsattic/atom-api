@@ -59,9 +59,7 @@
 
 (defvar muse-atom-footer
   "</div>
-   </content>
-   <muse-source><lisp>muse-content</lisp></muse-source>
-</entry>"
+   </content></entry>"
   "Footer used for publishing atom entries.")
 
 ;; (defun muse-atom:before-hook ()

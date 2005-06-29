@@ -613,6 +613,7 @@ response containing an atom feed."
   "Retuns the entry mapped to by key."
   (atom-api:util/lookup atom-api:entry/lookup-table key))
 
+;;;###autoload
 (defun atom-api:entry/new ()
   "Create a new entry."
   (interactive)
@@ -687,6 +688,7 @@ atom-api:file-prefix."
    prompt-string atom-api:entry/lookup-table
    atom-api:entry/prompt-history))
 
+;;;###autoload
 (defun atom-api:entry/edit ()
   "Prompts for an entry to edit, opens in new buffer"
   (interactive)
@@ -696,6 +698,7 @@ atom-api:file-prefix."
     (if (not (buffer-modified-p))
 	(atom-api:entry/to-editable entry))))
 
+;;;###autoload
 (defun atom-api:entry/delete ()
   "Prompts for an entry to delete, or deletes the current entry."
   (interactive)

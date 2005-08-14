@@ -843,20 +843,26 @@ atom-api:file-prefix."
   (atom-api:init 'sync))
 
 ;;some example filters
-(defun atom-api:util/encode-element (element attribute attribute-value encode-function)
+(defun atom-api:util/encode-element (element encode-function &optional attribute attribute-value)
+  "This filter takes the data contained in the element and encodes it
+with encode function. If attribute and attribute-value are supplied,
+makes sure that these are set in the element (e.g., attribute:
+\"encoding\" and attribute-value: \"base-64\")."
   (save-excursion
     (goto-char (point-min))
     (search-forward (concat "<" element " "))
     (let ((start (point)))
       (search-forward ">")
-      (if (search-backward (concat attribute "=\"") start 'third)
-	  ;;attribute already exists; replace it
-	  (progn
-	    (re-search-forward "\"[^\"]+\"")
-	    (replace-match (concat "\"" attribute-value "\"")))
-	;;attribute doesn't exist; add it.
-	(insert (concat " " attribute "=\"" attribute-value "\" ")))
-      (search-forward ">")
+      (cond ((and attribute attribute-value)
+	     ;; should we add attribute?
+	     (cond ((search-backward (concat attribute "=\"") start 'third)
+		    ;;attribute already exists; replace it
+		    (re-search-forward "\"[^\"]+\"")
+		    (replace-match (concat "\"" attribute-value "\"")))
+		   (t ;;attribute doesn't exist; add it.
+		    (insert (concat " " attribute "=\"" attribute-value "\" "))))
+	     ;;go back to where we started
+	     (search-forward ">")))
       (let* ((text-start (point))
 	     (raw-string (buffer-substring text-start (point)))
 	     (element-end-tag (concat "</" element ">")))
@@ -870,20 +876,20 @@ atom-api:file-prefix."
   "This base64 encodes the <content> element."
   (with-temp-buffer
     (insert data)
-    (atom-api:util/encode-element "content" "mode" "base64" 'base64-encode-string)))
+    (atom-api:util/encode-element "content" 'base64-encode-string "mode" "base64")))
 
 (defun atom-api:filter-data/entry/hexify-title (data)
   "This hex-encodes the <title> element."
   (with-temp-buffer
     (insert data)
-    (atom-api:util/encode-element "title" "mode" "escaped" 'url-hexify-string)
+    (atom-api:util/encode-element "title" 'url-hexify-string "mode" "escaped")
     (buffer-string)))
 
 (defun atom-api:filter-data/entry/hexify-content (data)
   "This hex-encodes the <content> element."
   (with-temp-buffer
     (insert data)
-    (atom-api:util/encode-element "content" "mode" "escaped" 'url-hexify-string)
+    (atom-api:util/encode-element "content" 'url-hexify-string "mode" "escaped")
     (buffer-string)))
 
 (defun atom-api:filter-data-util/delete-element (element data)

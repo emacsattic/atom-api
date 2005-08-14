@@ -584,7 +584,7 @@ elements."
   "Retrieves the feed located at URI and calls
 atom-api:feed/ingest-url-callback as a callback."
   (if (not (member feedurl atom-api:feed/digested-urls))
-      (atom-api:url/retrieve 
+      (atom-api:url/request 
        "" "GET" feedurl mode
        'atom-api:feed/ingest-url-callback (list feedurl))))
     
@@ -709,7 +709,7 @@ atom-api:file-prefix."
 	      (atom-api:entry/from-editable (buffer-string))))
 	 (entry-url
 	  (xml-get-attribute (atom-api:entry/get-edit-link entry) 'href)))
-    (atom-api:url/retrieve "" "DELETE" entry-url  'async
+    (atom-api:url/request "" "DELETE" entry-url  'async
 			   'atom-api:entry/delete-callback (list entry))))
 
 (defun atom-api:entry/delete-callback (entry)
@@ -732,16 +732,16 @@ atom-api:file-prefix."
 		 (t (funcall link-walker (cdr links))))))
     (funcall link-walker (xml-get-children entry 'link))))
 
-(defun atom-api:url/retrieve (data method url mode callback &optional cbargs)
-  "Request (ie, post, put, delete) data to the url."
+(defun atom-api:url/request (body method url mode callback &optional cbargs)
+  "Request (ie, post, put, delete) body to the url."
   (let* ((url-request-method method)
 	 (url-mime-accept-string "application/atom+xml")
 	 (url-request-extra-headers
 	  (list
-	   (if (equal data "") nil
+	   (if (equal body "") nil
 	    '("Content-type" . "application/atom+xml; charset=utf-8"))
 	   '("Accept-charset: utf-8")))
-	 (url-request-data (if (equal data "") nil data)))
+	 (url-request-data (if (equal body "") nil body)))
 ;    (if (eq mode 'sync)
    
     ;;the following is extraordinarily complicated but the only way I
@@ -789,7 +789,7 @@ atom-api:file-prefix."
 		   atom-api:filters/entry/pre-post url entry)))))
     (old-entry (atom-api:entry/lookup
 		     (xml-node-text (xml-get-child entry 'id)))))
-    (atom-api:url/retrieve
+    (atom-api:url/request
      (atom-api:util/encode-string-to-utf
       (atom-api:xml/to-string dirty-entry))
      method url 'sync 'atom-api:entry/publish-callback 

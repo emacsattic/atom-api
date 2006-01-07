@@ -1,5 +1,5 @@
 ;;; atom-api.el --- Implementation of draft atom-api
-;;; version 2006-01-06
+;;; version 2006-01-07
 
 ;; Copyright (c) 2005-2006 Erik Hetzner
 
@@ -787,17 +787,19 @@ atom-api:file-prefix."
 	 (response-data-temp-file (make-temp-file "atom-api"))	
 	 (request-body-temp-file (make-temp-file "atom-api-curl-data"))
 	 (curl-args
-	  (append (list "--request" method)
-		  (list "--user" (concat atom-api:curl/user ":" atom-api:curl/password))
-		  (if (and body (not (string= body "")))
-		      (list "--data-binary" (concat "@" request-body-temp-file)))
-		  (list "-o" response-data-temp-file)
-		  (list "--header" 
-			"Content-type: application/atom+xml; charset=utf-8")
-		  (list "--header" "Accept-charset: utf-8")
-		  (list "-w" "%{http_code}")
-		  (list "--include" "-L" "-s") ;; single args
-		  (list url))))
+	  `("--request" ,method
+	    "--user"
+	    ,(concat atom-api:curl/user ":" atom-api:curl/password)
+	    ,@(if (and body (not (string= body "")))
+		 (list "--data-binary"
+		       (concat "@" request-body-temp-file)))
+	    "-o" ,response-data-temp-file
+	    "--header" 
+	    "Content-type: application/atom+xml; charset=utf-8"
+	    "--header" "Accept-charset: utf-8"
+	    "-w" "%{http_code}"
+	    "--include" "-s" "--location-trusted" ;; single args
+	    ,url)))
     (save-excursion
       (if (and body (not (string= body "")))
 	  (let ((coding-system-for-write 'binary))

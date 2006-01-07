@@ -1,7 +1,7 @@
 ;;; atom-api.el --- Implementation of draft atom-api
-;;; version 2005-06-27
+;;; version 2006-01-06
 
-;; Copyright (c) 2005 Erik Hetzner
+;; Copyright (c) 2005-2006 Erik Hetzner
 
 ;; Author: Erik Hetzner <ehetzner@gmail.com>
 

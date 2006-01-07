@@ -642,7 +642,8 @@ atom-api:file-prefix."
 
 (defun atom-api:entry/to-editable (entry)
   "Returns user-editable entry."
-  entry)
+;;  (message (atom-api:xml/to-string entry))
+  (atom-api:xml/to-string entry))
 
 (defun atom-api:entry/from-editable (text)
   "Turns used-edited entry into atom entry."
@@ -696,7 +697,12 @@ atom-api:file-prefix."
   (let ((entry (atom-api:entry/prompt-for "Entry: ")))
     (switch-to-buffer (xml-node-text (xml-get-child entry 'title)))
     (if (not (buffer-modified-p))
-	(atom-api:entry/to-editable entry))))
+	(progn
+	  (insert (atom-api:entry/to-editable 
+		   (atom-api:util/process-filters
+		    atom-api:filters/entry/pre-edit ""
+		    (atom-api:xml/parse-string entry))))
+	  (atom-api:entry/edit-thunk)))))
 
 ;;;###autoload
 (defun atom-api:entry/delete ()

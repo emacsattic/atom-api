@@ -243,6 +243,13 @@ create file but only prepare buffer."
   :group 'atom-api
   :type 'string)
 
+(defcustom atom-api:url-request-function
+  'atom-api:url-el/request
+  "What to use for fetching urls."
+  :group 'atom-api
+  :type '(radio (const :tag "Curl program" atom-api:curl/request)
+		(const :tag "Url package (elisp)" atom-api:url-el/request)))
+
 ;;some utility functions
 
 ;;it seems that newer versions of url use this; 'ignore' I think
@@ -738,7 +745,7 @@ atom-api:file-prefix."
 		 (t (funcall link-walker (cdr links))))))
     (funcall link-walker (xml-get-children entry 'link))))
 
-(defun atom-api:url/request (body method url mode callback &optional cbargs)
+(defun atom-api:url-el/request (body method url mode callback &optional cbargs)
   "Request (ie, post, put, delete) body to the url."
   (let* ((url-request-method method)
 	 (url-mime-accept-string "application/atom+xml")
@@ -764,6 +771,49 @@ atom-api:file-prefix."
 	(insert-file-contents temp-file-name)
 	(if callback (apply callback cbargs))))))
 ;      (url-retrieve url callback cbargs))))
+
+(defvar atom-api:curl/user nil)
+(defvar atom-api:curl/password nil)
+
+(defun atom-api:curl/request
+  (body method url mode callback &optional cbargs)
+  "Request (ie, post, put, delete) data to the url (using curl)."
+  (if (not atom-api:curl/user) 
+      (setq atom-api:curl/user (read-from-minibuffer "Username: ")))
+  (if (not atom-api:curl/password) 
+      (setq atom-api:curl/password (read-passwd "Password: ")))
+  (let* ((which-buffer (generate-new-buffer "atom-curl"))
+	 (response-code-buffer (generate-new-buffer "atom-curl-code"))
+	 (response-data-temp-file (make-temp-file "atom-api"))	
+	 (request-body-temp-file (make-temp-file "atom-api-curl-data"))
+	 (curl-args
+	  (append (list "--request" method)
+		  (list "--user" (concat atom-api:curl/user ":" atom-api:curl/password))
+		  (if (and body (not (string= body "")))
+		      (list "--data-binary" (concat "@" request-body-temp-file)))
+		  (list "-o" response-data-temp-file)
+		  (list "--header" 
+			"Content-type: application/atom+xml; charset=utf-8")
+		  (list "--header" "Accept-charset: utf-8")
+		  (list "-w" "%{http_code}")
+		  (list "--include" "-L" "-s") ;; single args
+		  (list url))))
+    (save-excursion
+      (if (and body (not (string= body "")))
+	  (let ((coding-system-for-write 'binary))
+	    (with-temp-file request-body-temp-file
+	      (insert body))))
+      (set-buffer response-code-buffer)
+      (message "curl args: %s" curl-args) 
+      (apply 'call-process "curl" nil t nil curl-args)
+      (if callback 
+	  (let ((url-http-response-status (string-to-number (buffer-string))))
+	    (with-temp-buffer 
+	      (insert-file-contents response-data-temp-file)
+	      (apply callback cbargs)))))))
+
+(defun atom-api:url/request (&rest args)
+  (apply atom-api:url-request-function args))
 
 (defun atom-api:entry/publish ()
   "Publish the current buffer."

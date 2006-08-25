@@ -38,6 +38,9 @@
 ;; * Internationalized; you should be able to post in any unicode
 ;; supported script.
 
+;; * Supports WSSE for authentication, customize atom-api:use-wsse.
+
+
 ;; * Seems to work.
 
 ;;; Anti-features:
@@ -45,8 +48,7 @@
 ;; atom-api:prompt-for-defaults doesn't work. I can't remember how
 ;; this works with following links (ie, atom feeds which link to
 ;; others for older entries). There are surely bugs. Code needs clean
-;; up. Supports only whatever authentication that url.el supports (ie,
-;; not WSSE).
+;; up.
 
 ;;; Installation
 ;;
@@ -249,6 +251,13 @@ create file but only prepare buffer."
   :group 'atom-api
   :type '(radio (const :tag "Curl program" atom-api:curl/request)
 		(const :tag "Url package (elisp)" atom-api:url-el/request)))
+
+(defcustom atom-api:use-wsse
+  nil
+  "If yes, use WSSE authentication."
+  :group 'atom-api
+  :type '(choice (const :tag "Yes" t)
+		 (const :tag "No" nil)))
 
 ;;some utility functions
 
@@ -745,6 +754,64 @@ atom-api:file-prefix."
 		 (t (funcall link-walker (cdr links))))))
     (funcall link-walker (xml-get-children entry 'link))))
 
+(defvar atom-api:wsse/user nil)
+(defvar atom-api:wsse/password nil)
+
+(defun atom-api:wsse/timestamp (&optional time)
+  (format-time-string "%Y-%m-%eT%TZ" time t))
+
+(defun atom-api:wsse/nonce ()
+  (number-to-string (random t)))
+
+(defun atom-api:wsse/digest (password &optional timestring nonce)
+  (let ((timestring (or timestring (atom-api:wsse/timestamp)))
+	(nonce (or nonce (atom-api:wsse/nonce))))
+    (base64-encode-string (sha1-binary (concat nonce timestring password)))))
+
+(defun atom-api:wsse/headers ()
+  (progn
+    (if (not atom-api:wsse/user)
+	(setq atom-api:wsse/user (read-from-minibuffer "Username: ")))
+    (if (not atom-api:wsse/password)
+	(setq atom-api:wsse/password (read-from-minibuffer "Password: ")))
+    (let* ((timestamp (atom-api:wsse/timestamp))
+	   (nonce (atom-api:wsse/nonce))
+	   (digest (atom-api:wsse/digest atom-api:wsse/password timestamp nonce))
+	   (wsse
+	    (format "Username=\"%s\", PasswordDigest=\"%s\", Created=\"%s\", Nonce=\"%s\""
+		    atom-api:wsse/user digest timestamp (base64-encode-string nonce))))
+      (list '("Authorization" . "WSSE profile=\"UsernameToken\"")
+	    (cons "X-WSSE" (concat "UsernameToken " wsse))))))
+
+(defvar atom-api:wsse/user nil)
+(defvar atom-api:wsse/password nil)
+
+(defun atom-api:wsse/timestamp (&optional time)
+  (format-time-string "%Y-%m-%eT%TZ" time t))
+
+(defun atom-api:wsse/nonce ()
+  (number-to-string (random t)))
+
+(defun atom-api:wsse/digest (password &optional timestring nonce)
+  (let ((timestring (or timestring (atom-api:wsse/timestamp)))
+	(nonce (or nonce (atom-api:wsse/nonce))))
+    (base64-encode-string (sha1-binary (concat nonce timestring password)))))
+
+(defun atom-api:wsse/headers ()
+  (progn
+    (if (not atom-api:wsse/user)
+	(setq atom-api:wsse/user (read-from-minibuffer "Username: ")))
+    (if (not atom-api:wsse/password)
+	(setq atom-api:wsse/password (read-from-minibuffer "Password: ")))
+    (let* ((timestamp (atom-api:wsse/timestamp))
+	   (nonce (atom-api:wsse/nonce))
+	   (digest (atom-api:wsse/digest atom-api:wsse/password timestamp nonce))
+	   (wsse
+	    (format "Username=\"%s\", PasswordDigest=\"%s\", Created=\"%s\", Nonce=\"%s\""
+		    atom-api:wsse/user digest timestamp (base64-encode-string nonce))))
+      (list '("Authorization" . "WSSE profile=\"UsernameToken\"")
+	    (cons "X-WSSE" (concat "UsernameToken " wsse))))))
+
 (defun atom-api:url-el/request (body method url mode callback &optional cbargs)
   "Request (ie, post, put, delete) body to the url."
   (let* ((url-request-method method)
@@ -752,9 +819,14 @@ atom-api:file-prefix."
 	 (url-request-extra-headers
 	  (list
 	   (if (equal body "") nil
-	    '("Content-type" . "application/atom+xml; charset=utf-8"))
-	   '("Accept-charset: utf-8")))
-	 (url-request-data (if (equal body "") nil body)))
+	     '("Content-type" . "application/atom+xml; charset=utf-8"))
+	   '("Accept-charset: \"utf-8\"")))
+	 (url-request-extra-headers
+	  (if atom-api:use-wsse
+	      (dolist (hdr (atom-api:wsse/headers) url-request-extra-headers)
+		(setq url-request-extra-headers 
+		      (cons hdr url-request-extra-headers)))))
+  	 (url-request-data (if (equal body "") nil body)))
 ;    (if (eq mode 'sync)
    
     ;;the following is extraordinarily complicated but the only way I
@@ -797,6 +869,9 @@ atom-api:file-prefix."
 	    "--header" 
 	    "Content-type: application/atom+xml; charset=utf-8"
 	    "--header" "Accept-charset: utf-8"
+	    ,@(if atom-api:use-wsse
+		  (mapcar (lambda (x) (list "--header" x))
+			  (atom-api:wsse/headers)))
 	    "-w" "%{http_code}"
 	    "--include" "-s" "--location-trusted" ;; single args
 	    ,url)))

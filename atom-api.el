@@ -783,35 +783,6 @@ atom-api:file-prefix."
       (list '("Authorization" . "WSSE profile=\"UsernameToken\"")
 	    (cons "X-WSSE" (concat "UsernameToken " wsse))))))
 
-(defvar atom-api:wsse/user nil)
-(defvar atom-api:wsse/password nil)
-
-(defun atom-api:wsse/timestamp (&optional time)
-  (format-time-string "%Y-%m-%eT%TZ" time t))
-
-(defun atom-api:wsse/nonce ()
-  (number-to-string (random t)))
-
-(defun atom-api:wsse/digest (password &optional timestring nonce)
-  (let ((timestring (or timestring (atom-api:wsse/timestamp)))
-	(nonce (or nonce (atom-api:wsse/nonce))))
-    (base64-encode-string (sha1-binary (concat nonce timestring password)))))
-
-(defun atom-api:wsse/headers ()
-  (progn
-    (if (not atom-api:wsse/user)
-	(setq atom-api:wsse/user (read-from-minibuffer "Username: ")))
-    (if (not atom-api:wsse/password)
-	(setq atom-api:wsse/password (read-from-minibuffer "Password: ")))
-    (let* ((timestamp (atom-api:wsse/timestamp))
-	   (nonce (atom-api:wsse/nonce))
-	   (digest (atom-api:wsse/digest atom-api:wsse/password timestamp nonce))
-	   (wsse
-	    (format "Username=\"%s\", PasswordDigest=\"%s\", Created=\"%s\", Nonce=\"%s\""
-		    atom-api:wsse/user digest timestamp (base64-encode-string nonce))))
-      (list '("Authorization" . "WSSE profile=\"UsernameToken\"")
-	    (cons "X-WSSE" (concat "UsernameToken " wsse))))))
-
 (defun atom-api:url-el/request (body method url mode callback &optional cbargs)
   "Request (ie, post, put, delete) body to the url."
   (let* ((url-request-method method)
